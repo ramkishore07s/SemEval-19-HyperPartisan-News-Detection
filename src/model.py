@@ -11,7 +11,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+# essential functions for performing the 
 def batch_matmul_bias(seq, weight, bias, nonlinearity=''):
     s = None
     bias_dim = bias.size()
@@ -69,7 +69,7 @@ class WordEncoderRNN(nn.Module): # Encoder GRU which give hidden state represent
                    outputs[:, :, self.hidden_size:])
         return outputs
 
-class WordAttention(nn.Module): # Attention echanism for word hidden states
+class WordAttention(nn.Module): # Attention mechanism for word hidden states
     def __init__(self, hidden_size):
         super().__init__()
         self.hidden_size = hidden_size
@@ -95,7 +95,7 @@ class SentEncoderRNN(nn.Module): # Encoder GRU which give hidden state represent
         self.batch_size = batch_size
         self.word_hidden_size = word_hidden_size
         self.n_classes = n_classes
-        self.gru = nn.GRU(2 * word_hidden_size, sent_hidden_size,bidirectional=True)
+        self.gru = nn.GRU(2 * word_hidden_size, 2 * sent_hidden_size,bidirectional=True)
          
     def forward(self, word_attn_vectors, state_sent):
         outputs, _ = self.gru(word_attn_vectors, state_sent)
@@ -104,11 +104,11 @@ class SentEncoderRNN(nn.Module): # Encoder GRU which give hidden state represent
         return outputs
 
 class SentAttention(nn.Module):
-    def __init__(self, hidden_size):  
+    def __init__(self, sent_gru_hidden):  
         super().__init__()
-        self.weight_W_sent = nn.Parameter(torch.Tensor(2* sent_gru_hidden ,2* sent_gru_hidden))
-        self.bias_sent = nn.Parameter(torch.Tensor(2* sent_gru_hidden,1))
-        self.weight_proj_sent = nn.Parameter(torch.Tensor(2* sent_gru_hidden, 1))
+        self.weight_W_sent = nn.Parameter(torch.Tensor(2*sent_gru_hidden ,2*sent_gru_hidden))
+        self.bias_sent = nn.Parameter(torch.Tensor(2*sent_gru_hidden,1))
+        self.weight_proj_sent = nn.Parameter(torch.Tensor(2*sent_gru_hidden, 1))
         self.softmax_sent = nn.Softmax()
         self.weight_W_sent.data.uniform_(-0.1, 0.1)
         self.weight_proj_sent.data.uniform_(-0.1,0.1)
@@ -121,10 +121,44 @@ class SentAttention(nn.Module):
         sent_attn_vectors = attention_mul(encoder_outputs, sent_attn_norm.transpose(1,0))   
         return sent_attn_vectors, sent_attn_norm 
 
+class HeadlineEncoderRNN(nn.Module):
+    def __init__(self, batch_size, hline_hidden_size, sent_hidden_size):
+        super().__init__()
+        self.hline_hidden_size = hline_hidden_size
+        self.batch_size = batch_size
+        self.sent_hidden_size = sent_hidden_size
+        self.n_classes = n_classes
+        self.gru = nn.GRU(2 * sent_hidden_size, hline_hidden_size, bidirectional=True)
+
+    def forward(self, sent_attn_vectors, state_hline):
+        outputs, _ = self.gru(sent_attn_vectors, state_hline)
+        outputs = (outputs[:, :, :self.hline_hidden_size] +
+                   outputs[:, :, self.hline_hidden_size:])
+        return outputs 
+         
+
+class HlineAtention(nn.Module):
+    def __init__(self, hline_hidden_size):
+        super().__init__()
+        self.weight_W_hline = nn.Parameter(torch.Tensor(2*hline_hidden_size, 2*hline_hidden_size))
+        self.bias_hline = nn.Parameter(torch.Tensor(2*hline_hidden_size, 1))
+        self.weight_proj_hline = nn.Parameter(torch.Tensor(2*hline_hidden_size,1))
+        self.softmax_hline = nn.Softmax()
+        self.weight_W_hline.data.uniform(-0.1, 0.1)
+        self.weight_proj_hline.data.uniform(-0.1, 0.1)
+        self.hline_hidden_size = hline_hidden_size
+    
+    def forward(self, hline_attn_vectors, state_hline):
+        hline_squish = batch_matmul_bias(encoder_outputs, self.weight_W_hline,self.bias_hline, nonlinearity='tanh')
+        hline_attn = batch_matmul(hline_squish, self.weight_proj_hline)
+        hline_attn_norm = self.softmax_hline(hline_attn.transpose(1,0))
+        hline_attn_vectors = attention_mul(encoder_outputs, hline_attn_norm.transpose(1,0))   
+        return hline_attn_vectors, hline_attn_norm 
+
 class Seq2Seq(nn.Module):
     def __init__(self, encoder):
         super().__init__()
         self.encoder = encoder
     
     def forward(self, src, tag, teacher_forcing_tario=0.5):
-        batch_size = 
+        pass
