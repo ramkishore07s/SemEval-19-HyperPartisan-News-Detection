@@ -11,6 +11,13 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def fcc_matmul(repr_vec, weight, bias, nonlinearity='sigmoid'):
+    s = torch.addmv(bias, weight, repr_vec)
+    if nonlinearity == 'sigmoid':
+        s = torch.sigmoid(s)
+    return s
+
 # essential functions for performing the 
 def batch_matmul_bias(seq, weight, bias, nonlinearity=''):
     s = None
@@ -147,18 +154,29 @@ class HlineAtention(nn.Module):
         self.weight_W_hline.data.uniform(-0.1, 0.1)
         self.weight_proj_hline.data.uniform(-0.1, 0.1)
         self.hline_hidden_size = hline_hidden_size
+
+        # multi label classifier params
+        self.weight_W_fcc = nn.Parameter(torch.Tensor(4, 2*hline_hidden_size))
+        self.bias_fcc = nn.Parameter(torch.Tensor(4, 1))
+        
     
     def forward(self, hline_attn_vectors, state_hline):
         hline_squish = batch_matmul_bias(encoder_outputs, self.weight_W_hline,self.bias_hline, nonlinearity='tanh')
         hline_attn = batch_matmul(hline_squish, self.weight_proj_hline)
         hline_attn_norm = self.softmax_hline(hline_attn.transpose(1,0))
-        hline_attn_vectors = attention_mul(encoder_outputs, hline_attn_norm.transpose(1,0))   
-        return hline_attn_vectors, hline_attn_norm 
+        hline_attn_vectors = attention_mul(encoder_outputs, hline_attn_norm.transpose(1,0))  
+
+        # final multi-label prediction
+        final_label_vector = fcc_matmul(hline_attn_vectors, self.bias_fcc, self.weight_W_fcc)
+        return hline_attn_vectors, final_label_vector
+
+
 
 class Seq2Seq(nn.Module):
-    def __init__(self, encoder):
+    def __init__(self, encoder, decoder):
         super().__init__()
         self.encoder = encoder
-    
+        self.decoder = decoder    
+        
     def forward(self, src, tag, teacher_forcing_tario=0.5):
         pass

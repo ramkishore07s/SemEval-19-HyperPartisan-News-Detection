@@ -1,4 +1,6 @@
 dataset/
 dataset*
-data/
+processed_data/
 processed_data.zip
+glove*
+.R*
