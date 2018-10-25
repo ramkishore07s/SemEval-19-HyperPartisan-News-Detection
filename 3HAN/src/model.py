@@ -175,11 +175,11 @@ class HlineAtention(nn.Module):
         return hline_attn_vectors, final_label_vector
 
 
-class Seq2Seq(nn.Module):
-    def __init__(self, encoder, decoder):
-        super().__init__()
-        self.encoder = encoder
-        self.decoder = decoder    
-        
-    def forward(self, src, tag, teacher_forcing_tario=0.5):
-        pass
+class Model(nn.Module):
+    def __init__(self, no_urls, weights=None):
+        super(Model, self).__init__()
+        self.wordEncoder = WordEncoderRNN()
+        self.wordAttention = WordAttention()
+        self.sentEncoder = SentEncoderRNN()
+        self.sentEncoder = SentAttention()
+        self.hline
