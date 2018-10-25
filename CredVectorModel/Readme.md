@@ -5,7 +5,7 @@
 Let representation of a given sentence `s` be `h(s)` and assume that `s` had a hyperlink to some link `k`, meaning the information `s` was obtained from source `k`. 
 
 Then we can modify the representation as:
-$$SentenceRepresentation(s) = tanh(W_{k}(h(s)) + bias_{k})$$
+`SentenceRepresentation(s) = tanh(W_{k}(h(s)) + bias_{k})`
 
 If a sentence does not have any citations, then a default Matrix is used.
 
