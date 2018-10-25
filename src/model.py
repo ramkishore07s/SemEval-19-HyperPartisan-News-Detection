@@ -60,6 +60,7 @@ def attention_mul(rnn_outputs, att_weights):
             attn_vectors = torch.cat((attn_vectors,h_i),0)
     return torch.sum(attn_vectors, 0).unsqueeze(0)
 
+
 class WordEncoderRNN(nn.Module): # Encoder GRU which give hidden state representations
     def __init__(self, batch_size, hidden_size, embed_size, n_layers=1, dropout=0.5):
         super().__init__()
@@ -75,6 +76,7 @@ class WordEncoderRNN(nn.Module): # Encoder GRU which give hidden state represent
         outputs = (outputs[:, :, :self.hidden_size] +
                    outputs[:, :, self.hidden_size:])
         return outputs
+
 
 class WordAttention(nn.Module): # Attention mechanism for word hidden states
     def __init__(self, hidden_size):
@@ -95,6 +97,7 @@ class WordAttention(nn.Module): # Attention mechanism for word hidden states
         word_attn_vectors = attention_mul(encoder_outputs, word_attn_norm.transpose(1,0))
         return word_attn_vectors, word_attn_norm
 
+
 class SentEncoderRNN(nn.Module): # Encoder GRU which give hidden state representations
     def __init__(self, batch_size, sent_hidden_size, word_hidden_size):
         super().__init__()
@@ -109,6 +112,7 @@ class SentEncoderRNN(nn.Module): # Encoder GRU which give hidden state represent
         outputs = (outputs[:, :, :self.sent_hidden_size] +
                    outputs[:, :, self.sent_hidden_size:])
         return outputs
+
 
 class SentAttention(nn.Module):
     def __init__(self, sent_gru_hidden):  
@@ -128,6 +132,7 @@ class SentAttention(nn.Module):
         sent_attn_vectors = attention_mul(encoder_outputs, sent_attn_norm.transpose(1,0))   
         return sent_attn_vectors, sent_attn_norm 
 
+
 class HeadlineEncoderRNN(nn.Module):
     def __init__(self, batch_size, hline_hidden_size, sent_hidden_size):
         super().__init__()
@@ -142,7 +147,7 @@ class HeadlineEncoderRNN(nn.Module):
         outputs = (outputs[:, :, :self.hline_hidden_size] +
                    outputs[:, :, self.hline_hidden_size:])
         return outputs 
-         
+
 
 class HlineAtention(nn.Module):
     def __init__(self, hline_hidden_size):
@@ -158,8 +163,7 @@ class HlineAtention(nn.Module):
         # multi label classifier params
         self.weight_W_fcc = nn.Parameter(torch.Tensor(4, 2*hline_hidden_size))
         self.bias_fcc = nn.Parameter(torch.Tensor(4, 1))
-        
-    
+         
     def forward(self, hline_attn_vectors, state_hline):
         hline_squish = batch_matmul_bias(encoder_outputs, self.weight_W_hline,self.bias_hline, nonlinearity='tanh')
         hline_attn = batch_matmul(hline_squish, self.weight_proj_hline)
@@ -169,7 +173,6 @@ class HlineAtention(nn.Module):
         # final multi-label prediction
         final_label_vector = fcc_matmul(hline_attn_vectors, self.bias_fcc, self.weight_W_fcc)
         return hline_attn_vectors, final_label_vector
-
 
 
 class Seq2Seq(nn.Module):
