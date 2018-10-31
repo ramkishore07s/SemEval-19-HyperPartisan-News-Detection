@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[15]:
+# In[3]:
 
 import torch
 import torch.nn as nn
@@ -9,90 +9,45 @@ import torch.nn.functional as f
 import torch.optim as optim
 
 
-# In[16]:
+# In[4]:
 
 import _pickle as pickle
 import random
 
 
-# In[17]:
+# In[5]:
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# In[18]:
+# In[6]:
 
 torch.cuda.set_device(0)
 
 
-# In[19]:
+# In[21]:
 
 #get_ipython().magic(u'run Model.ipynb')
 from Model import *
 
-# In[20]:
+# In[8]:
 
-emb = pickle.load(open('./Meta/glove_100d_vectors', 'rb'))
-emb.append(np.zeros(100))
-emb = torch.Tensor(emb)
-print('loaded Glove')
+#get_ipython().magic(u'run Helpers.ipynb')
+from Helpers import *
 
-# In[21]:
+# In[15]:
 
-urls = pickle.load(open('./Meta/urls', 'rb'))
-no_urls = len(urls)
+use_source_bias = False
+no_iterations = 10
 
 
-# In[22]:
-
-class_mapping = {
-    'left': [1, 0, 0, 0, 0],
-    'left-center': [0, 1, 0, 0, 0],
-    'least': [0, 0, 1, 0, 0],
-    'right': [0, 0, 0, 0, 1],
-    'right-center': [0, 0, 0, 1, 0],
-}
-
-
-# In[23]:
-
-def pad_data(data, max_sen_len=50, max_doc_len=90, padding_idx=400003):
-    lines = []
-    lengths = []
-    for doc in data:
-        lines.append([])
-        lengths.append([])
-        for line in doc[2][0:max_doc_len]:
-            if len(line) > max_sen_len:
-                line = line[0:max_sen_len]
-                lengths[-1].append(max_sen_len)
-            else:
-                lengths[-1].append(len(line))
-                line = line + [padding_idx for _ in range(max_sen_len - len(line))]
-            lines[-1].append(line)
-    return lines, lengths
-
-
-# In[24]:
-
-def pad_titles(data, max_sen_len=20, padding_idx=400003):
-    lines = []
-    for row in data:
-        line = row[0]
-        if len(line) > max_sen_len:
-            lines.append(line[0:max_sen_len])
-        else:
-            lines.append(line + [padding_idx for _ in range(max_sen_len - len(line))])
-    return lines
-
-
-# In[57]:
+# In[34]:
 
 class TrainModel():
     def __init__(self, model):
         self.model = model
         self.raw_data, self.lines, self.pad_lengths, self.truth, self.class_, self.urls = None, None, None, None, None, None
-        self.file_no = 1
+        self.file_no = 0
         self.max_file_no = 8
         self.batch_size = 20
         
@@ -133,7 +88,8 @@ class TrainModel():
                     titles = torch.cuda.LongTensor([self.titles[i] for i in batch])
                     truth = torch.cuda.FloatTensor([[self.truth[i]] for i in batch])
                     bias = torch.cuda.ByteTensor([self.class_[i] for i in batch])
-                    pbias, ptruth = self.model(input, urls, titles)
+                    lengths = torch.cuda.FloatTensor([self.pad_lengths[i] for i in batch])
+                    pbias, ptruth = self.model(input, urls, titles) #lengths)
                     # normal BCE loss
                     #  loss1 = self.loss2(ptruth, truth)
                     # softmax loss
@@ -149,132 +105,21 @@ class TrainModel():
                     self.optimizer.step()
 
 
-# In[58]:
+# In[35]:
 
-m = Model(no_urls, emb)
+m = Model(NO_URLS, EMB, use_source_bias=use_source_bias)
 m.cuda()
 
 
-# In[59]:
+# In[36]:
 
 t = TrainModel(m)
 
 
-# In[60]:
+# In[37]:
 
-t.train_epoch()
-
-
-# In[ ]:
-
-torch.save(t.model.state_dict(), 'parameters_1')
-
-
-# In[66]:
-
-#import matplotlib.pyplot as plt
-
-
-# In[67]:
-
-#plt.plot(t.losses)
-
-
-# **RESULTS ON VALIDATION SET**
-
-# In[ ]:
-
-validation_data = pickle.load(open('validation_0', 'rb+'))
-validation_data.extend(pickle.load(open('validation_1', 'rb+')))
-
-
-# In[ ]:
-
-batch_size = 20
-
-
-# In[ ]:
-
-raw_data = validation_data
-lines, pad_lengths = pad_data(raw_data)
-class_ = [class_mapping[row[-1]] for row in raw_data]
-truth = [int(row[-2]) for row in raw_data]
-lengths = [[] for _ in range(90)]
-for i, j in enumerate(lines):
-    if not len(j) == 0:
-        lengths[len(j) - 1].append(i)
-urls = [i[1][0:90] for i in raw_data]
-batches = []
-for unit in lengths:
-    for i in range(0, len(unit), batch_size):
-        batches.append(unit[i:i+batch_size])
-titles = pad_titles(raw_data)
-random.shuffle(batches)
-
-
-# In[ ]:
-
-bias_tp, bias_tn, bias_fp, bias_fn = 0, 0, 0, 0
-truth_tp, truth_tn, truth_fp, truth_fn = 0, 0, 0, 0
-
-
-# In[ ]:
-
-with torch.no_grad():
-    for batch in batches:
-        if len(batch) == 20:
-            input_ = torch.cuda.LongTensor([lines[i] for i in batch])
-            urls_ = torch.cuda.LongTensor([urls[i] for i in batch])
-            titles_ = torch.cuda.LongTensor([titles[i] for i in batch])
-            truth_ = torch.cuda.FloatTensor([[truth[i]] for i in batch])
-            bias_ = torch.cuda.FloatTensor([class_[i] for i in batch])
-            pbias, ptruth = t.model(input_, urls_, titles_)
-
-            truth_tp += torch.sum(ptruth.gt(.5) * truth_.gt(0)).cpu().data
-            truth_tn += torch.sum(ptruth.le(.5) * truth_.le(0)).cpu().data
-            truth_fp += torch.sum(ptruth.gt(.5) * truth_.le(0)).cpu().data
-            truth_fn += torch.sum(ptruth.le(.5) * truth_.gt(0)).cpu().data
-
-
-# In[ ]:
-
-precision = truth_tp.long() / (truth_tp + truth_fp).long()
-recall = truth_tp.long() / (truth_tp + truth_fn).long()
-f1_score = 2 * precision * recall / (precision + recall)
-print(f1_score)
-
-
-# In[29]:
-
-torch.ones(1).cuda()
-
-
-# In[45]:
-
-a = torch.Tensor([[0, 1, 0], [0, 1, 1]])
-
-
-# In[46]:
-
-b = torch.Tensor(np.random.rand(2, 3))
-
-
-# In[47]:
-
-b
-
-
-# In[48]:
-
-b.masked_select(a)
-
-
-# In[41]:
-
-b
-
-
-# In[ ]:
-
-
+for i in range(no_iterations):
+    t.train_epoch()
+    torch.save(t.model.state_dict(), 'parameters_' + str(i))
+    # add validation here
 

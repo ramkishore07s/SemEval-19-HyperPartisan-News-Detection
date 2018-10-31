@@ -14,30 +14,30 @@
 # 
 # An alterate approach could be to have a weightage vector for each source.
 
-# In[1]:
+# In[2]:
 
 import numpy as np
 
 
-# In[1]:
+# In[3]:
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as f
 
 
-# In[3]:
+# In[4]:
 
 from config import model_config as config
 
 
-# In[19]:
+# In[5]:
 
 def random_(size):
     return np.random.uniform(1, -1, size)
 
 
-# In[4]:
+# In[6]:
 
 def create_embedding_layer(weights, non_trainable=False, padding_idx=401005):
     if weights is not None:
@@ -52,7 +52,7 @@ def create_embedding_layer(weights, non_trainable=False, padding_idx=401005):
     return emb_layer, emb_len, word_dims
 
 
-# In[5]:
+# In[7]:
 
 class LSTMSentenceEncoderParallel(nn.Module):
     '''
@@ -77,7 +77,68 @@ class LSTMSentenceEncoderParallel(nn.Module):
         return sentences
 
 
-# In[6]:
+# In[8]:
+
+class LSTMSentenceEncoderPadding(nn.Module):
+    '''
+    INPUT: 3D Tensor of word Ids (batch_size * no_sentences_per_doc * no_words_per_sen)
+    OUTPUT: 3D Tensor of sentence Embeddings (batch_size * no_sentence_per_doc * sen_emb_size)
+    '''
+    def __init__(self, weights=None):
+
+        super(LSTMSentenceEncoderParallel, self).__init__()
+        self.embeddings, vocab, emb_len = create_embedding_layer(weights, config.word_emb_size)
+        self.sentenceEncoder = nn.LSTM(config.word_emb_size, 
+                                       config.sen_emb_size, 
+                                       batch_first=True, 
+                                       bidirectional=config.sen_bidirectional)
+        self.sen_emb_size = config.sen_emb_size
+        if config.sen_bidirectional: self.sen_emb_size *= 2
+
+    def forward(self, input, lengths, sen_len=config.sen_len):
+        words = self.embeddings(input.view(-1)).view(-1, sen_len, config.word_emb_size)
+        lengths_sorted, idx = torch.sort()
+        hn = self.sentenceEncoder(words)[1][0]
+        sentences = torch.cat((hn[0], hn[1]), dim=1).reshape(config.batch_size, -1, self.sen_emb_size)
+        return sentences
+
+
+# In[62]:
+
+a = nn.LSTM(10, 12, batch_first=True)
+
+
+# In[79]:
+
+input = torch.Tensor(np.random.rand(20, 13, 10))
+
+
+# In[80]:
+
+lengths, idx = torch.sort(torch.LongTensor(np.random.randint(low=1, high=12, size=(20))).reshape(-1), descending=True)
+
+
+# In[81]:
+
+input_packed = nn.utils.rnn.pack_padded_sequence(input, lengths, batch_first=True)
+
+
+# In[82]:
+
+input_padded = nn.utils.rnn.pad_packed_sequence(input_packed)
+
+
+# In[83]:
+
+output = nn.utils.rnn.pad_packed_sequence(a(input_packed)[0])
+
+
+# In[84]:
+
+output[0].shape
+
+
+# In[ ]:
 
 class SourceBiasParallel(nn.Module):
     '''
@@ -102,7 +163,7 @@ class SourceBiasParallel(nn.Module):
         return self.non_linearity(output).reshape(input.size())
 
 
-# In[7]:
+# In[ ]:
 
 class SourceBiasSeq(nn.Module):
     '''
@@ -129,7 +190,7 @@ class SourceBiasSeq(nn.Module):
         return self.non_linearity(output).reshape(input.size())
 
 
-# In[8]:
+# In[ ]:
 
 class Attention(nn.Module):
     def __init__(self):
@@ -146,7 +207,7 @@ class Attention(nn.Module):
         return output
 
 
-# In[9]:
+# In[ ]:
 
 class MLP(nn.Module):
     def __init__(self, input_size, output_size):
@@ -166,16 +227,15 @@ class MLP(nn.Module):
         return output
 
 
-# In[18]:
+# In[ ]:
 
 class Model(nn.Module):
-    def __init__(self, no_urls, weights=None, bias_emb=True):
+    def __init__(self, no_urls, weights=None, use_source_bias=True):
         super(Model, self).__init__()
         self.sentenceEncoder = LSTMSentenceEncoderParallel(weights)
-        if bias_emb:
+        if use_source_bias:
             self.sourceBias = SourceBiasParallel(no_urls)
-        else:
-            self.sourceBias = SourceBiasSeq(no_urls)
+        self.use_source_bias = use_source_bias
         self.documentEncoder = nn.LSTM(config.sen_emb_size * 2, config.doc_emb_size, batch_first=True, bidirectional=True)
         self.documentAttention = Attention()
         self.biasMLP = MLP(config.doc_emb_size * 2, 5)
@@ -183,7 +243,10 @@ class Model(nn.Module):
         
     def forward(self, input, urls, titles):
         sentences = self.sentenceEncoder(input)
-        bias_sentences = self.sourceBias(sentences, urls)
+        if self.use_source_bias:
+            bias_sentences = self.sourceBias(sentences, urls)
+        else:
+            bias_sentences = sentences
         documents = self.documentEncoder(sentences)[0]
         headings = self.sentenceEncoder(titles, config.title_len).squeeze(1)
         document_reps = self.documentAttention(documents, headings)
@@ -191,34 +254,4 @@ class Model(nn.Module):
         truth_output = self.truthMLP(document_reps)
         
         return bias_output, truth_output
-
-
-# In[13]:
-
-m = Model(10)
-
-
-# In[14]:
-
-input = torch.LongTensor(np.random.uniform(0, 10, (config.batch_size, 10, config.sen_len)))
-
-
-# In[15]:
-
-urls = torch.LongTensor(np.random.uniform(0, 10, (config.batch_size, 10)))
-
-
-# In[16]:
-
-titles = torch.LongTensor(np.random.uniform(0, 10, (config.batch_size, config.title_len)))
-
-
-# In[17]:
-
-m(input, urls, titles)
-
-
-# In[ ]:
-
-
 
