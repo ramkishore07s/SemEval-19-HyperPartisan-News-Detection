@@ -3,14 +3,14 @@
 
 # ## Parse XML
 
-# In[19]:
+# In[1]:
 
 import os
 import xml.sax
 import shutil
 
 
-# In[ ]:
+# In[2]:
 
 class ArticleParser(xml.sax.ContentHandler):
     def __init__(self, folder):
@@ -66,7 +66,7 @@ class ArticleParser(xml.sax.ContentHandler):
             self.content[-1] += content
 
 
-# In[ ]:
+# In[3]:
 
 parser = xml.sax.make_parser()
 parser.setFeature(xml.sax.handler.feature_namespaces, 0)
@@ -131,14 +131,14 @@ parser.parse('dataset/ground-truth-validation-20180831.xml')
 
 # ## Process Data
 
-# In[12]:
+# In[5]:
 
 import nltk
 
 
 # **SENTENCE SPLITTER**
 
-# In[13]:
+# In[6]:
 
 import re
 alphabets= "([A-Za-z])"
@@ -178,7 +178,7 @@ def split_into_sentences(text):
 
 # **LOAD GLOVE VECTORS**
 
-# In[14]:
+# In[7]:
 
 import numpy as np
 
@@ -200,7 +200,7 @@ with open(glove_file) as f:
 print(len(WORDS), len(WORD_ID_MAPPING), len(VECTORS))
 
 
-# In[15]:
+# In[8]:
 
 UNK = '@@@UNK@@@'
 WORDS.append(UNK)
@@ -210,7 +210,7 @@ VECTORS.extend(np.random.randn(1, 100))
 
 # **PROCESSING DATA FOR DEEP LEARNING**
 
-# In[27]:
+# In[9]:
 
 TRAIN_FOLDER = 'dataset/training/'
 VALIDATION_FOLDER = 'dataset/validation/'
@@ -220,7 +220,7 @@ START = '<start>'
 END = '<end>'
 
 
-# In[28]:
+# In[10]:
 
 WORDS.append(START)
 WORDS.append(END)
@@ -230,25 +230,26 @@ VECTORS.extend(np.random.randn(2, 100))
 
 # **ADD PADDING VECTOR**
 
-# In[ ]:
+# In[13]:
 
 VECTORS.extend(np.zeros(1, 100))
 
 
-# In[29]:
+# In[14]:
 
 LINK_PATTERN = re.compile('\&.*\&')
 
 
-# In[30]:
+# In[15]:
 
 URLS = {}
 URL_ID_COUNT = 0
+URL_COUNT = {}
 
 
 # **FUNCTION TO TOKENIZE FILE, EXTRACT CITED URLS AND TITLE**
 
-# In[31]:
+# In[16]:
 
 def process_file(file):
     f = open(file).read()
@@ -273,15 +274,16 @@ def process_file(file):
 
 # **FUNCTION TO MAP TOKENS TO NUMBERS**
 
-# In[32]:
+# In[17]:
 
 def convert_to_vectors(title, urls, lines):
-    global URL_ID_COUNT, URLS, WORD_ID_MAPPING
+    global URL_ID_COUNT, URLS, WORD_ID_MAPPING, URL_COUNT
     
     url_ids, line_ids = [], []
     for url in urls:
         if url not in URLS:
-            URLS[url], URL_ID_COUNT = URL_ID_COUNT, URL_ID_COUNT + 1
+            URLS[url], URL_ID_COUNT, URL_COUNT[url] = URL_ID_COUNT, URL_ID_COUNT + 1, 0
+        URL_COUNT[url] += 1
         url_ids.append(URLS[url])
         
     for line in lines:
@@ -299,12 +301,12 @@ def convert_to_vectors(title, urls, lines):
 
 # **PROCESSING OUTPUTS**
 
-# In[33]:
+# In[18]:
 
 OUTPUTS = {}
 
 
-# In[34]:
+# In[19]:
 
 def load_outputs(file, dict_):
     lines = open(file).readlines()
@@ -319,7 +321,7 @@ def load_outputs(file, dict_):
         dict_[words[0]] = output
 
 
-# In[35]:
+# In[20]:
 
 load_outputs('dataset/training_labels', OUTPUTS)
 load_outputs('dataset/validation_labels', OUTPUTS)
@@ -327,12 +329,12 @@ load_outputs('dataset/validation_labels', OUTPUTS)
 
 # **PROCESS DATA AND STORE IN PKL FORMAT**
 
-# In[36]:
+# In[21]:
 
 import _pickle as pickle
 
 
-# In[37]:
+# In[22]:
 
 def process(folder, per_file=100000, name='training'):              # per_file -> no of files to store in one pkl file
     # process each file
@@ -354,12 +356,12 @@ def process(folder, per_file=100000, name='training'):              # per_file -
             count = 0
 
 
-# In[38]:
+# In[ ]:
 
 process(TRAIN_FOLDER, name='training')
 
 
-# In[39]:
+# In[ ]:
 
 process(VALIDATION_FOLDER, name='validation')
 
@@ -369,7 +371,7 @@ process(VALIDATION_FOLDER, name='validation')
 # * Word Mappings
 # * Url Mappings
 
-# In[40]:
+# In[ ]:
 
 pickle.dump(VECTORS, open('glove_100d_vectors', 'wb+'))
 
@@ -378,4 +380,10 @@ pickle.dump(VECTORS, open('glove_100d_vectors', 'wb+'))
 
 pickle.dump(WORD_ID_MAPPING, open('word_mappings', 'wb+'))
 pickle.dump(URLS, open('urls', 'wb+'))
+pickle.dump(URL_COUNT, open('url_count', 'wb+'))
+
+
+# In[ ]:
+
+
 

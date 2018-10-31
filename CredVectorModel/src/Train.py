@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[15]:
 
 import torch
 import torch.nn as nn
@@ -9,41 +9,41 @@ import torch.nn.functional as f
 import torch.optim as optim
 
 
-# In[2]:
+# In[16]:
 
 import _pickle as pickle
 import random
 
 
-# In[3]:
+# In[17]:
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# In[4]:
+# In[18]:
 
-torch.cuda.set_device(1)
-
-
-# In[5]:
-
-get_ipython().magic(u'run Model.ipynb')
+torch.cuda.set_device(0)
 
 
-# In[6]:
+# In[19]:
+
+#get_ipython().magic(u'run Model.ipynb')
+from Model import *
+
+# In[20]:
 
 emb = pickle.load(open('./Meta/glove_100d_vectors', 'rb'))
 emb.append(np.zeros(100))
 emb = torch.Tensor(emb)
+print('loaded Glove')
 
-
-# In[7]:
+# In[21]:
 
 urls = pickle.load(open('./Meta/urls', 'rb'))
 no_urls = len(urls)
 
 
-# In[8]:
+# In[22]:
 
 class_mapping = {
     'left': [1, 0, 0, 0, 0],
@@ -54,7 +54,7 @@ class_mapping = {
 }
 
 
-# In[9]:
+# In[23]:
 
 def pad_data(data, max_sen_len=50, max_doc_len=90, padding_idx=400003):
     lines = []
@@ -73,7 +73,7 @@ def pad_data(data, max_sen_len=50, max_doc_len=90, padding_idx=400003):
     return lines, lengths
 
 
-# In[10]:
+# In[24]:
 
 def pad_titles(data, max_sen_len=20, padding_idx=400003):
     lines = []
@@ -86,7 +86,7 @@ def pad_titles(data, max_sen_len=20, padding_idx=400003):
     return lines
 
 
-# In[11]:
+# In[57]:
 
 class TrainModel():
     def __init__(self, model):
@@ -132,42 +132,52 @@ class TrainModel():
                     urls = torch.cuda.LongTensor([self.urls[i] for i in batch])
                     titles = torch.cuda.LongTensor([self.titles[i] for i in batch])
                     truth = torch.cuda.FloatTensor([[self.truth[i]] for i in batch])
-                    bias = torch.cuda.FloatTensor([self.class_[i] for i in batch])
+                    bias = torch.cuda.ByteTensor([self.class_[i] for i in batch])
                     pbias, ptruth = self.model(input, urls, titles)
-                    self.output = pbias, bias
-                    loss1 = self.loss2(ptruth, truth)
-                    loss2 = self.loss2(pbias, bias)
-                    loss = loss1 + loss2
+                    # normal BCE loss
+                    #  loss1 = self.loss2(ptruth, truth)
+                    # softmax loss
+                    pbias_select = pbias.masked_select(bias)
+                    ones = torch.ones(pbias_select.size()).cuda()
+                    loss2 = self.loss2(pbias_select, ones)
+                    self.output = [pbias, pbias_select, ones]
+                    # add both losses
+                    loss = loss2 # + loss1
                     print(str(self.batches.index(batch)) + ' ' + str(loss), end='\r')
                     self.losses.append(loss.cpu().data)
                     loss.backward()
                     self.optimizer.step()
 
 
-# In[12]:
+# In[58]:
 
 m = Model(no_urls, emb)
 m.cuda()
 
 
-# In[13]:
+# In[59]:
 
 t = TrainModel(m)
 
 
-# In[ ]:
+# In[60]:
 
 t.train_epoch()
 
 
 # In[ ]:
 
-import matplotlib.pyplot as plt
+torch.save(t.model.state_dict(), 'parameters_1')
 
 
-# In[ ]:
+# In[66]:
 
-plt.plot(t.losses)
+#import matplotlib.pyplot as plt
+
+
+# In[67]:
+
+#plt.plot(t.losses)
 
 
 # **RESULTS ON VALIDATION SET**
@@ -210,34 +220,61 @@ truth_tp, truth_tn, truth_fp, truth_fn = 0, 0, 0, 0
 
 # In[ ]:
 
-for batch in batches:
-    if len(batch) == 20:
-        t.model.zero_grad()
-        input_ = torch.cuda.LongTensor([lines[i] for i in batch])
-        urls_ = torch.cuda.LongTensor([urls[i] for i in batch])
-        titles_ = torch.cuda.LongTensor([titles[i] for i in batch])
-        truth_ = torch.cuda.FloatTensor([[truth[i]] for i in batch])
-        bias_ = torch.cuda.FloatTensor([class_[i] for i in batch])
-        pbias, ptruth = t.model(input_, urls_, titles_)
-        
-        truth_tp += torch.sum(pbias.gt(.5) * bias.gt(0)).cpu().data
-        truth_tn += torch.sum(pbias.le(.5) * bias.le(0)).cpu().data
-        truth_fp += torch.sum(pbias.gt(.5) * bias.le(0)).cpu().data
-        truth_fn += torch.sum(pbias.le(.5) * bias.gt(0)).cpu().data
+with torch.no_grad():
+    for batch in batches:
+        if len(batch) == 20:
+            input_ = torch.cuda.LongTensor([lines[i] for i in batch])
+            urls_ = torch.cuda.LongTensor([urls[i] for i in batch])
+            titles_ = torch.cuda.LongTensor([titles[i] for i in batch])
+            truth_ = torch.cuda.FloatTensor([[truth[i]] for i in batch])
+            bias_ = torch.cuda.FloatTensor([class_[i] for i in batch])
+            pbias, ptruth = t.model(input_, urls_, titles_)
+
+            truth_tp += torch.sum(ptruth.gt(.5) * truth_.gt(0)).cpu().data
+            truth_tn += torch.sum(ptruth.le(.5) * truth_.le(0)).cpu().data
+            truth_fp += torch.sum(ptruth.gt(.5) * truth_.le(0)).cpu().data
+            truth_fn += torch.sum(ptruth.le(.5) * truth_.gt(0)).cpu().data
 
 
 # In[ ]:
 
 precision = truth_tp.long() / (truth_tp + truth_fp).long()
 recall = truth_tp.long() / (truth_tp + truth_fn).long()
-
-
-# In[ ]:
-
 f1_score = 2 * precision * recall / (precision + recall)
+print(f1_score)
+
+
+# In[29]:
+
+torch.ones(1).cuda()
+
+
+# In[45]:
+
+a = torch.Tensor([[0, 1, 0], [0, 1, 1]])
+
+
+# In[46]:
+
+b = torch.Tensor(np.random.rand(2, 3))
+
+
+# In[47]:
+
+b
+
+
+# In[48]:
+
+b.masked_select(a)
+
+
+# In[41]:
+
+b
 
 
 # In[ ]:
 
-f1_score
+
 

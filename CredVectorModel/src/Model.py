@@ -14,29 +14,35 @@
 # 
 # An alterate approach could be to have a weightage vector for each source.
 
-# In[ ]:
+# In[1]:
 
 import numpy as np
 
 
-# In[ ]:
+# In[1]:
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as f
 
 
-# In[ ]:
+# In[3]:
 
 from config import model_config as config
 
 
-# In[1]:
+# In[19]:
+
+def random_(size):
+    return np.random.uniform(1, -1, size)
+
+
+# In[4]:
 
 def create_embedding_layer(weights, non_trainable=False, padding_idx=401005):
     if weights is not None:
         emb_len, word_dims = weights.size()
-        emb_layer = torch.nn.Embedding(emb_len, word_dims, padding_idx=padding_idx)
+        emb_layer = torch.nn.Embedding(emb_len, word_dims, padding_idx=emb_len-1)
         emb_layer.load_state_dict({'weight': weights})
     else:
         emb_layer = torch.nn.Embedding(10, config.word_emb_size, padding_idx=9)
@@ -46,7 +52,7 @@ def create_embedding_layer(weights, non_trainable=False, padding_idx=401005):
     return emb_layer, emb_len, word_dims
 
 
-# In[ ]:
+# In[5]:
 
 class LSTMSentenceEncoderParallel(nn.Module):
     '''
@@ -71,7 +77,7 @@ class LSTMSentenceEncoderParallel(nn.Module):
         return sentences
 
 
-# In[ ]:
+# In[6]:
 
 class SourceBiasParallel(nn.Module):
     '''
@@ -96,7 +102,7 @@ class SourceBiasParallel(nn.Module):
         return self.non_linearity(output).reshape(input.size())
 
 
-# In[ ]:
+# In[7]:
 
 class SourceBiasSeq(nn.Module):
     '''
@@ -107,8 +113,8 @@ class SourceBiasSeq(nn.Module):
     '''
     def __init__(self, no_urls, non_linearity=torch.tanh):
         super(SourceBiasSeq, self).__init__()
-        self.trans = nn.Parameter(torch.FloatTensor(no_urls, config.sen_emb_size * 2, config.sen_emb_size * 2))
-        self.bias = nn.Parameter(torch.FloatTensor(no_urls, config.sen_emb_size * 2))
+        self.trans = nn.Parameter(torch.FloatTensor(random_(no_urls, config.sen_emb_size * 2, config.sen_emb_size * 2)))
+        self.bias = nn.Parameter(torch.FloatTensor(random_(no_urls, config.sen_emb_size * 2)))
         self.non_linearity = non_linearity
         
     def forward(self, input, urls):
@@ -123,7 +129,7 @@ class SourceBiasSeq(nn.Module):
         return self.non_linearity(output).reshape(input.size())
 
 
-# In[ ]:
+# In[8]:
 
 class Attention(nn.Module):
     def __init__(self):
@@ -140,7 +146,7 @@ class Attention(nn.Module):
         return output
 
 
-# In[ ]:
+# In[9]:
 
 class MLP(nn.Module):
     def __init__(self, input_size, output_size):
@@ -160,13 +166,16 @@ class MLP(nn.Module):
         return output
 
 
-# In[ ]:
+# In[18]:
 
 class Model(nn.Module):
-    def __init__(self, no_urls, weights=None):
+    def __init__(self, no_urls, weights=None, bias_emb=True):
         super(Model, self).__init__()
         self.sentenceEncoder = LSTMSentenceEncoderParallel(weights)
-        self.sourceBias = SourceBiasSeq(no_urls)
+        if bias_emb:
+            self.sourceBias = SourceBiasParallel(no_urls)
+        else:
+            self.sourceBias = SourceBiasSeq(no_urls)
         self.documentEncoder = nn.LSTM(config.sen_emb_size * 2, config.doc_emb_size, batch_first=True, bidirectional=True)
         self.documentAttention = Attention()
         self.biasMLP = MLP(config.doc_emb_size * 2, 5)
@@ -184,27 +193,32 @@ class Model(nn.Module):
         return bias_output, truth_output
 
 
-# In[ ]:
+# In[13]:
 
 m = Model(10)
 
 
-# In[ ]:
+# In[14]:
 
 input = torch.LongTensor(np.random.uniform(0, 10, (config.batch_size, 10, config.sen_len)))
 
 
-# In[ ]:
+# In[15]:
 
 urls = torch.LongTensor(np.random.uniform(0, 10, (config.batch_size, 10)))
 
 
-# In[ ]:
+# In[16]:
 
 titles = torch.LongTensor(np.random.uniform(0, 10, (config.batch_size, config.title_len)))
 
 
-# In[ ]:
+# In[17]:
 
 m(input, urls, titles)
+
+
+# In[ ]:
+
+
 
