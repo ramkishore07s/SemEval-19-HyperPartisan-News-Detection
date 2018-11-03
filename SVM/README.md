@@ -4,4 +4,4 @@ Features include tf-idf weights of unigram and bigram tokens. Also other feature
 
 The Ground-truth classifier is a binary Linear SVM classifier and the Bias Classifier (5 class) is a OneVsRest Linear SVM classifier.
 
-The Accuracy obtained for truth classifier is 70% and for the bias classifier is 33%.
+The Accuracy obtained for truth classifier is 70% and for the bias classifier is around 30%.
