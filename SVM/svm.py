@@ -126,48 +126,48 @@ def train():
 
         pickle.dump(pipeline,f_pk,pickle.HIGHEST_PROTOCOL)
 
-    # pipeline_bias = Pipeline([
-    #     # Extract the subject & body
-    #     ('HeadlineBodyFeatures', HeadlineBodyFeaturesExtractor()),
+    pipeline_bias = Pipeline([
+        # Extract the subject & body
+        ('HeadlineBodyFeatures', HeadlineBodyFeaturesExtractor()),
 
-    #     # Use FeatureUnion to combine the features from subject and body
-    #     ('union', FeatureUnion(
-    #         transformer_list=[
+        # Use FeatureUnion to combine the features from subject and body
+        ('union', FeatureUnion(
+            transformer_list=[
 
-    #             #Pipeline for pulling features from articles
+                #Pipeline for pulling features from articles
 
-    #             ('ngrams_title', Pipeline([
-    #                 ('selector', ItemSelector(key='headline')),
-    #                 ('vect', TfidfVectorizer(ngram_range=(1,2), token_pattern = r'\b\w+\b',max_df=0.5,stop_words=None)),
-    #             ])),
+                ('ngrams_title', Pipeline([
+                    ('selector', ItemSelector(key='headline')),
+                    ('vect', TfidfVectorizer(ngram_range=(1,2), token_pattern = r'\b\w+\b',max_df=0.5,stop_words=None)),
+                ])),
 
-    #             ('ngrams_text', Pipeline([
-    #                 ('selector', ItemSelector(key='article_body')),
-    #                 ('vect', TfidfVectorizer(ngram_range=(1,2), token_pattern = r'\b\w+\b',max_df=0.5,stop_words=None)),
-    #             ])),
+                ('ngrams_text', Pipeline([
+                    ('selector', ItemSelector(key='article_body')),
+                    ('vect', TfidfVectorizer(ngram_range=(1,2), token_pattern = r'\b\w+\b',max_df=0.5,stop_words=None)),
+                ])),
 
-    #                  ('text_stats_headline', Pipeline([
-    #             ('selector', ItemSelector(key='headline')),
-    #             ('stats', Text_Stats()),  # returns a list of dicts
-    #             ('vect', DictVectorizer()),  # list of dicts -> feature matrix
-    #         ])),
+                     ('text_stats_headline', Pipeline([
+                ('selector', ItemSelector(key='headline')),
+                ('stats', Text_Stats()),  # returns a list of dicts
+                ('vect', DictVectorizer()),  # list of dicts -> feature matrix
+            ])),
 
-    #         ('text_stats_body', Pipeline([
-    #             ('selector', ItemSelector(key='article_body')),
-    #             ('stats', Text_Stats()),  # returns a list of dicts
-    #             ('vect', DictVectorizer()),  # list of dicts -> feature matrix
-    #         ])),
+            ('text_stats_body', Pipeline([
+                ('selector', ItemSelector(key='article_body')),
+                ('stats', Text_Stats()),  # returns a list of dicts
+                ('vect', DictVectorizer()),  # list of dicts -> feature matrix
+            ])),
 
-    #             ],
-    #             )),
-    #             ('svc', OneVsRestClassifier(LinearSVC(max_iter=10000))),
-    # ])
+                ],
+                )),
+                ('svc', OneVsRestClassifier(LinearSVC(max_iter=10000))),
+    ])
 
-    # pipeline_bias.fit(train_texts, train_bias)
+    pipeline_bias.fit(train_texts, train_bias)
 
-    # with open(MODEL_FILE_BIAS,"wb") as f_pk:
+    with open(MODEL_FILE_BIAS,"wb") as f_pk:
 
-    #     pickle.dump(pipeline_bias,f_pk,pickle.HIGHEST_PROTOCOL)
+        pickle.dump(pipeline_bias,f_pk,pickle.HIGHEST_PROTOCOL)
 
     
 
@@ -203,7 +203,7 @@ def main():
     args = argparser.parse_args()
 
     if args.classify:
-        test_title,test_url,test_body = process_train(args.classify,cnt=2000)
+        test_title,test_url,test_body = process_train(args.classify)
         test_texts = list(zip(test_title,test_body))
         pipeline = load_model(MODEL_FILE_TRUTH)
         predictions = pipeline.predict(test_texts)
