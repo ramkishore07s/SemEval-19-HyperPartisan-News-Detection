@@ -1,4 +1,4 @@
-The classification uses Linear SVM for classification.
+The model uses Linear SVM for classification.
 
 Features include tf-idf weights of unigram and bigram tokens. Also other features such as polarity and subjectivity and average sentence lenght are used.
 
