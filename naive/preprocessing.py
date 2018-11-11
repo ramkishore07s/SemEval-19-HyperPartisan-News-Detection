@@ -4,7 +4,6 @@ from Stemmer import Stemmer
 from nltk.corpus import stopwords
 import numpy as np
 
-
 def stemming(data): 
 	stemmer = Stemmer("english")
 	stemmedData = [stemmer.stemWord(key) for key in data]
@@ -24,7 +23,6 @@ def dataPreprocessing(data):
 	filteredData = removeStopWords(tokenizedData)
 	stemmedData = stemming(filteredData)
 	return (" ".join(stemmedData))
-
 
 def processData(title,curtitle,article,curarticle):
 	ttitle = dataPreprocessing(curtitle)
@@ -54,8 +52,7 @@ def readData(path,t="train"):
 		numCitation.append(curnumcitation)	
 		processData(title,curtitle,article,curarticle)
 		print(t+" "+str(count))		
-		count += 1
-		
+		count += 1		
 	return title,article,numCitation
 
 def readLabel(filename,t="train"):
@@ -75,7 +72,5 @@ def readLabel(filename,t="train"):
 			docTruthLabel.append(truthlabels[item[1]])
 			print(t+" "+str(count))
 			count+=1
-	
-
 	return docBiasLabel,docTruthLabel
 
