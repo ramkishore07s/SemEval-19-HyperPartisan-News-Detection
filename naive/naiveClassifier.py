@@ -28,14 +28,12 @@ def createNgram(input,size):
 def ngramsMatch(title,article,size):
 	matchHit = 0
 	matchEarlyHit = 0 
-	titlegrams = [' '.join(x) for x in createNgram(title, size)]
-	
+	titlegrams = [' '.join(x) for x in createNgram(title, size)]	
 	for gram in titlegrams:
 		if gram in article:
 			matchHit += 1
 		if gram in article[:255]:
-			matchEarlyHit += 1
-	
+			matchEarlyHit += 1	
 	return matchHit,matchEarlyHit
 
 def helpextractFeature(title,article,numcitiation):
@@ -44,8 +42,7 @@ def helpextractFeature(title,article,numcitiation):
 	for size in range(1,3):	
 		matchHit,matchEarlyHit = ngramsMatch(title,article,size)
 		field_stats.append( matchHit)
-		field_stats.append(matchEarlyHit)
-		
+		field_stats.append(matchEarlyHit)		
 	return field_stats
 
 def load_model(modelFile):
@@ -64,24 +61,20 @@ class extractFeature(BaseEstimator, TransformerMixin):
 		for field in posts:
 			stats.append(field)
 		stats = np.matrix(stats,dtype=np.float128)
-		stats = csr_matrix(stats)	
-		
+		stats = csr_matrix(stats)		
 		return stats
 
 class ItemSelector(BaseEstimator, TransformerMixin):
 	def __init__(self, key):
 		self.key = key
-
 	def fit(self, x, y=None):
 		return self
-
 	def transform(self, data_dict):
 		return data_dict[self.key]
 
 class TitleArticleExtractor(BaseEstimator, TransformerMixin):
 	def fit(self, x, y=None):
 		return self
-
 	def transform(self, posts):
 		stats = []
 		features = np.recarray(shape=(len(posts),), dtype=[('title', object), ('article', object),('ngram', object)])
@@ -90,13 +83,11 @@ class TitleArticleExtractor(BaseEstimator, TransformerMixin):
 			features['title'][i] = title
 			features['article'][i] = article 
 			features['ngram'][i] = helpextractFeature(title,article,numcitiation)
-
 		return features
 
 class Text_Stats(BaseEstimator, TransformerMixin):
 	def fit(self, x, y=None):
 		return self
-
 	def transform(self, posts):		
 		stats = []
 		for i,field in enumerate(posts):	
@@ -108,8 +99,7 @@ class Text_Stats(BaseEstimator, TransformerMixin):
 				subjectivity = 0
 			field_stats.append(polarity)
 			field_stats.append(subjectivity)
-			stats.append(field_stats)
-			
+			stats.append(field_stats)			
 		stats = np.matrix(stats,dtype=np.float128)
 		stats = csr_matrix(stats)	
 
@@ -136,7 +126,7 @@ def train():
 						('selector', ItemSelector(key='title')),
 						('vect', TfidfVectorizer(min_df = 0.01)),
 						('to_dense', DenseTransformer()),
-					])
+			     ])
 	TfidfArticle = Pipeline([
 						('selector', ItemSelector(key='article')),
 						('vect', TfidfVectorizer(min_df = 0.01)),
