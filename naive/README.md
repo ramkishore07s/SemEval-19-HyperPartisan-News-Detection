@@ -1,7 +1,7 @@
-Repository contains code that reads the dataset, extracts features,trains model and performs an evaluation 
+Repository contains code that reads the dataset, extracts features,trains model and performs evaluation 
 on test dataset.
 
-The model uses Naive Bayes for classification.
+Model uses Naive Bayes for classification.
 
 Features:
 	1. TFIDF weights.
